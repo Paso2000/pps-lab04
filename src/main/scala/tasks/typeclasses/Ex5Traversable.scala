@@ -1,6 +1,9 @@
 package u04lab
-import u03.Sequences.* 
+import u03.Sequences.*
 import Sequence.*
+import u03.extensionmethods.Optionals.Optional
+import u03.extensionmethods.Optionals.Optional.{Just, None}
+import u04.typeclasses.HigherKindedTypesWithExtensionMethods.Filterable
 
 /*  Exercise 5: 
  *  - Generalise by ad-hoc polymorphism logAll, such that:
@@ -17,10 +20,40 @@ import Sequence.*
 
 object Ex5Traversable:
 
-  def log[A](a: A): Unit = println("The next element is: "+a)
+  trait Traversable[T[_]]:
+    def log[A](t: T[A]): Unit
+  
+  private def logAll[T[_]: Traversable,A](traversable: T[A]): Unit =
+    val loggable = summon[Traversable[T]]
+    loggable.log(traversable)
 
-  def logAll[A](seq: Sequence[A]): Unit = seq match
-    case Cons(h, t) => log(h); logAll(t)
-    case _ => ()
+  given Traversable[Sequence] with
+    def log[A](sequence: Sequence[A]): Unit = sequence match
+      case Nil() =>
+      case Cons(h,t) => print(h); log(t)
+
+
+  given Traversable[Optional] with
+    def log[A](optional: Optional[A]):Unit = optional match
+      case Optional.None() =>
+      case Optional.Just(a) => print(a)
+
+
+  @main def tryLoggable(): Unit =
+
+    val si = Cons(10, Cons(20, Cons(30, Nil())))
+    println:
+      logAll(si) // 60
+
+    logAll(Nil())
+
+    val sd = Optional.Just(5)
+    println:
+      logAll(sd) // 60.0
+
+
+
+
+
 
   

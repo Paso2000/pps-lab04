@@ -1,6 +1,9 @@
 package tasks.adts
 import u03.extensionmethods.Optionals.*
 import u03.extensionmethods.Sequences.*
+import u03.extensionmethods.Sequences.Sequence.*
+
+import scala.annotation.tailrec
 
 /*  Exercise 2: 
  *  Implement the below trait, and write a meaningful test.
@@ -111,21 +114,67 @@ object SchoolModel:
        */
       def hasCourse(name: String): Boolean
   object BasicSchoolModule extends SchoolModule:
-    override type School = Nothing
-    override type Teacher = Nothing
-    override type Course = Nothing
 
-    def teacher(name: String): Teacher = ???
-    def course(name: String): Course = ???
-    def emptySchool: School = ???
+    case class TeacherImpl(name: String, coursesTeacher: Sequence[Course])
+    case class SchoolImpl(coursesOfTheSchool: Sequence[Course], teacherOfTheSchool: Sequence[TeacherImpl])
+
+
+
+    opaque override type School = SchoolImpl
+    opaque override type Teacher = TeacherImpl
+    opaque override type Course = String
+
+    def teacher(name: String): Teacher = TeacherImpl(name,Nil())
+    def course(name: String): Course = name
+    def emptySchool: School = SchoolImpl(Nil(), Nil())
 
     extension (school: School)
-      def courses: Sequence[String] = ???
-      def teachers: Sequence[String] = ???
-      def setTeacherToCourse(teacher: Teacher, course: Course): School = ???
-      def coursesOfATeacher(teacher: Teacher): Sequence[Course] = ???
-      def hasTeacher(name: String): Boolean = ???
-      def hasCourse(name: String): Boolean = ???
+      def courses: Sequence[String] = school.coursesOfTheSchool
+      def teachers: Sequence[String] = school.teacherOfTheSchool.map(_.name)
+      def setTeacherToCourse(teacher: Teacher, course: Course): School =
+        def updateTeacherCourses(teachers: Sequence[Teacher]): Sequence[Teacher] = teachers match
+          case Nil() => Cons(TeacherImpl(teacher.name, Cons(course, Nil())), Nil()) // Se il teacher non esiste, lo aggiungo con il corso
+          case Cons(h, t) if h.name == teacher.name =>
+            val updatedCourses = if (h.coursesTeacher.contains(course)) h.coursesTeacher else Cons(course, h.coursesTeacher) // Evita duplicati
+            Cons(TeacherImpl(h.name, updatedCourses), t) // Crea un nuovo Teacher con i corsi aggiornati
+          case Cons(h, t) => Cons(h, updateTeacherCourses(t)) // Continuo a cercare il docente
+
+        val updatedTeachers = updateTeacherCourses(school.teacherOfTheSchool)
+
+        // Aggiungo il corso alla lista generale dei corsi della scuola se non è già presente
+        val updatedCourses = if (school.courses.contains(course)) school.coursesOfTheSchool else Cons(course, school.coursesOfTheSchool)
+
+        SchoolImpl(updatedCourses, updatedTeachers) // Ritorna una nuova scuola con i dati aggiornati
+
+
+      def coursesOfATeacher(teacher: Teacher): Sequence[Course] =
+        @tailrec
+        def coursesOfTeacherImpl(sequence: Sequence[Teacher]) : Sequence[String] = sequence match
+          case Cons(h,t) if h.name == teacher.name => h.coursesTeacher
+          case Cons(h,t) => coursesOfTeacherImpl(t)
+          case _ => Nil()
+        coursesOfTeacherImpl(school.teacherOfTheSchool)
+
+      def hasTeacher(name: String): Boolean =
+        @tailrec
+        def hasTeacherImpl(name:String, sequence:Sequence[Teacher]): Boolean = sequence match
+          case Nil() => false
+          case Cons(h, t) if name == h.name => true
+          case Cons(h, t) => hasTeacherImpl(name, t)
+        hasTeacherImpl(name, school.teacherOfTheSchool)
+
+      def hasCourse(name: String): Boolean =
+        @tailrec
+        def hasCourseImpl(name:String, courses: Sequence[Course]): Boolean = courses match
+          case Nil() => false
+          case Cons(h,t) if name == h => true
+          case Cons(h,t) => hasCourseImpl(name,t)
+        hasCourseImpl(name, school.coursesOfTheSchool)
+
+
+
+
+
 @main def examples(): Unit =
   import SchoolModel.BasicSchoolModule.*
   val school = emptySchool
@@ -138,6 +187,7 @@ object SchoolModel:
   val italian = course("Italian")
   val school2 = school.setTeacherToCourse(john, math)
   println(school2.teachers) // Cons("John", Nil())
+  println(school2.coursesOfATeacher(john)) // Cons("Math", Nil()))
   println(school2.courses) // Cons("Math", Nil())
   println(school2.hasTeacher("John")) // true
   println(school2.hasCourse("Math")) // true
